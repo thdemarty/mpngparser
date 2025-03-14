@@ -1,5 +1,7 @@
 mod tests;
 mod parser;
+mod mpng;
+
 use std::path::Path;
 
 use clap::Parser as ArgParser;
@@ -18,5 +20,5 @@ fn main() {
     let filepath = Path::new(&args.filepath);
     let mut parser = Parser::new(filepath);
     let mpng = parser.parse();
-    mpng.print();
+    println!("{}", mpng);
 }

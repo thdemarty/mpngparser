@@ -1,71 +1,19 @@
+use crate::mpng;
 use byteorder::{BigEndian, ReadBytesExt};
 use std::{fs::File, io::Read, path::Path, process::exit};
 
 // Magic number for mini PNG files
 const MPNG_MAGIC: [u8; 8] = [0x4d, 0x69, 0x6e, 0x69, 0x2d, 0x50, 0x4e, 0x47];
 
-#[derive(Debug, Clone, Copy)]
-enum PixelType {
-    BlackAndWhite = 0,
-    GreyScale = 1,
-    Palette = 2,
-    TrueColor = 3,
-}
-#[derive(Debug, Clone, Copy)]
-struct MPNGHeader {
-    width: u32,
-    height: u32,
-    pixel_type: PixelType,
-}
-#[derive(Debug, Clone)]
-struct MPNGComment {
-    text: String,
-}
 
-#[derive(Debug, Clone)]
-struct MPNGData {
-    data: Vec<u8>,
-}
-
-#[derive(Debug)]
-pub struct MPNG {
-    header: MPNGHeader,
-    comment: Option<MPNGComment>,
-    data: MPNGData,
-}
-
-impl MPNG {
-    pub fn print(&self) {
-        // display each bytes as bit
-
-        let mut counter = 0;
-        for byte in &self.data.data {
-            for i in 0..8 {
-                let pixel_value = (byte >> i) & 1;
-                if pixel_value == 1 {
-                    print!("⬜");
-                } else {
-                    print!("⬛");
-                }
-                
-                counter += 1;
-
-                if counter % self.header.width == 0 {
-                    println!();
-                }
-
-            }
-        }
-    }
-}
 
 
 
 #[derive(Debug, Clone)]
 struct MPNGBuilder {
-    header: Option<MPNGHeader>,
-    comment: Option<MPNGComment>,
-    data: Option<MPNGData>,
+    pub header: Option<mpng::MPNGHeader>,
+    pub comment: Option<mpng::MPNGComment>,
+    pub data: Option<mpng::MPNGData>,
 }
 
 impl MPNGBuilder {
@@ -77,25 +25,25 @@ impl MPNGBuilder {
         }
     }
 
-    fn build(self) -> Result<MPNG, &'static str> {
+    fn build(self) -> Result<mpng::MPNG, &'static str> {
         let header = self.header.ok_or("Missing header block")?;
         let data = self.data.ok_or("Missing data block")?;
-        Ok(MPNG {
+        Ok(mpng::MPNG {
             header,
             comment: self.comment,
             data,
         })
     }
 
-    fn set_header(&mut self, header: MPNGHeader) {
+    fn set_header(&mut self, header: mpng::MPNGHeader) {
         self.header = Some(header);
     }
 
-    fn set_comment(&mut self, comment: MPNGComment) {
+    fn set_comment(&mut self, comment: mpng::MPNGComment) {
         self.comment = Some(comment);
     }
 
-    fn set_data(&mut self, data: MPNGData) {
+    fn set_data(&mut self, data: mpng::MPNGData) {
         self.data = Some(data);
     }
 }
@@ -113,7 +61,7 @@ impl Parser {
         Parser { reader, builder }
     }
 
-    pub fn parse(&mut self) -> MPNG {
+    pub fn parse(&mut self) -> mpng::MPNG {
         // Check first 8 bytes of file
         let mut magic = [0; 8];
         self.reader.read_exact(&mut magic).unwrap();
@@ -153,14 +101,14 @@ impl Parser {
         }
 
 
-        self.builder.set_header(MPNGHeader {
+        self.builder.set_header(mpng::MPNGHeader {
             width,
             height,
             pixel_type: match pixel_type {
-                0 => PixelType::BlackAndWhite,
-                1 => PixelType::GreyScale,
-                2 => PixelType::Palette,
-                3 => PixelType::TrueColor,
+                0 => mpng::PixelType::BlackAndWhite,
+                1 => mpng::PixelType::GreyScale,
+                2 => mpng::PixelType::Palette,
+                3 => mpng::PixelType::TrueColor,
                 _ => unreachable!(),
             },
         });
@@ -174,7 +122,7 @@ impl Parser {
         self.reader.read_exact(&mut data).unwrap();
 
         let text = String::from_utf8(data).unwrap();
-        self.builder.set_comment(MPNGComment { text });
+        self.builder.set_comment(mpng::MPNGComment { text });
 
         return true;
     }
@@ -188,7 +136,7 @@ impl Parser {
 
         self.reader.read_exact(&mut data).unwrap();
 
-        self.builder.set_data(MPNGData { data });
+        self.builder.set_data(mpng::MPNGData { data });
 
         return false;
     }
