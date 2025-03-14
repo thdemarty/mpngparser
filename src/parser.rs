@@ -182,6 +182,10 @@ impl Parser {
     fn parse_data(&mut self) -> bool {
         let length = self.reader.read_u32::<BigEndian>().unwrap();
         let mut data = vec![0; length as usize];
+
+        // test data consistency
+        assert!(self.builder.header.unwrap().width * self.builder.header.unwrap().height / 8 == length);
+
         self.reader.read_exact(&mut data).unwrap();
 
         self.builder.set_data(MPNGData { data });
