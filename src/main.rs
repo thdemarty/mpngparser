@@ -1,19 +1,22 @@
+mod tests;
 mod parser;
+use std::path::Path;
+
+use clap::Parser as ArgParser;
 use parser::Parser;
 
+
+#[derive(ArgParser)]
+#[command(version, about = "Yet another parser for minipng", long_about = None)]
+struct Args {
+    #[arg(value_parser = clap::value_parser!(String))]
+    filepath: String
+}
+
 fn main() {
-    let args: Vec<String> = std::env::args().collect();
-
-    if args.len() < 2 {
-        eprintln!("Usage: {} <filename>", args[0]);
-        std::process::exit(1);
-    }
-
-    let filename = &args[1];
-    
-    let mut parser = Parser::new(&filename);
+    let args = Args::parse();
+    let filepath = Path::new(&args.filepath);
+    let mut parser = Parser::new(filepath);
     let mpng = parser.parse();
-    
     mpng.print();
-
 }

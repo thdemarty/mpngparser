@@ -1,5 +1,5 @@
 use byteorder::{BigEndian, ReadBytesExt};
-use std::{io::Read, process::exit};
+use std::{fs::File, io::Read, path::Path, process::exit};
 
 // Magic number for mini PNG files
 const MPNG_MAGIC: [u8; 8] = [0x4d, 0x69, 0x6e, 0x69, 0x2d, 0x50, 0x4e, 0x47];
@@ -106,8 +106,8 @@ pub struct Parser {
 }
 
 impl Parser {
-    pub fn new(filename: &str) -> Self {
-        let file = std::fs::File::open(filename).unwrap();
+    pub fn new(filepath: &Path) -> Self {
+        let file = File::open(filepath).unwrap();
         let reader = std::io::BufReader::new(file);
         let builder = MPNGBuilder::new();
         Parser { reader, builder }
