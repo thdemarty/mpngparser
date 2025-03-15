@@ -20,5 +20,12 @@ fn main() {
     let filepath = Path::new(&args.filepath);
     let mut parser = Parser::new(filepath);
     let mpng = parser.parse();
-    println!("{}", mpng);
+    match mpng {
+        Ok(mpng) => {
+            println!("{}", mpng);
+        }
+        Err(e) => {
+            eprintln!("{:?}", e);
+        }
+    }
 }

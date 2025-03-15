@@ -53,25 +53,30 @@ impl fmt::Display for MPNG {
 
 impl MPNG {
     pub fn print(&self) {
-        // display each bytes as bit
+        match self.header.pixel_type {
+            PixelType::BlackAndWhite => self.print_black_and_white(),
+            _ => unimplemented!(),
+        }   
+    }
 
-        let mut counter = 0;
-        for byte in &self.data.data {
-            for i in 0..8 {
-                let pixel_value = (byte >> i) & 1;
-                if pixel_value == 1 {
-                    print!("X");
-                } else {
-                    print!(" ");
-                }
-                
-                counter += 1;
+    fn print_black_and_white(&self) {
+       let mut counter = 0;
+       for byte in &self.data.data {
+           for i in 0..8 {
+               let pixel_value = (byte >> i) & 1;
+               if pixel_value == 1 {
+                   print!("⬛");
+               } else {
+                   print!("⬜");
+               }
+               
+               counter += 1;
 
-                if counter % self.header.width == 0 {
-                    println!();
-                }
+               if counter % self.header.width == 0 {
+                   println!();
+               }
 
-            }
-        }
+           }
+       }
     }
 }

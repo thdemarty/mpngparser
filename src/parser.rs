@@ -6,8 +6,14 @@ use std::{fs::File, io::Read, path::Path, process::exit};
 const MPNG_MAGIC: [u8; 8] = [0x4d, 0x69, 0x6e, 0x69, 0x2d, 0x50, 0x4e, 0x47];
 
 
-
-
+#[derive(Debug)]
+pub enum ParsingError {
+    InvalidBlockTag,
+    InvalidMagicNumber,
+    InvalidHeaderBlockLength,
+    InvalidHeaderPixelType,
+    InvalidDataBlockConsistency,
+}
 
 #[derive(Debug, Clone)]
 struct MPNGBuilder {
@@ -61,18 +67,21 @@ impl Parser {
         Parser { reader, builder }
     }
 
-    pub fn parse(&mut self) -> mpng::MPNG {
+    pub fn parse(&mut self) -> Result<mpng::MPNG, ParsingError> {
         // Check first 8 bytes of file
         let mut magic = [0; 8];
         self.reader.read_exact(&mut magic).unwrap();
 
         if magic != MPNG_MAGIC {
-            eprintln!("Invalid MPNG file");
-            exit(1);
+            return Err(ParsingError::InvalidMagicNumber);
         }
 
-        while self.read_block() {
-            continue;
+        loop {
+            match self.read_block() {
+                Ok(true) => continue,
+                Ok(false) => break,
+                Err(e) => return Err(e),
+            }
         }
 
         // Build the MPNG struct
@@ -81,23 +90,21 @@ impl Parser {
             eprintln!("{}", mpng.err().unwrap());
             exit(1);
         } else {
-            return mpng.unwrap();
+            return Ok(mpng.unwrap());
         }
     }
 
-    fn parse_header(&mut self) -> bool {
+    fn parse_header(&mut self) -> Result<bool, ParsingError> {
         let length = self.reader.read_u32::<BigEndian>().unwrap();
         if length != 9 {
-            eprintln!("Invalid header block length: {}, must be 9.", length);
-            exit(1);
+            return Err(ParsingError::InvalidHeaderBlockLength);
         }
         
         let width = self.reader.read_u32::<BigEndian>().unwrap();
         let height = self.reader.read_u32::<BigEndian>().unwrap();
         let pixel_type = self.reader.read_u8().unwrap();
         if pixel_type > 3 {
-            eprintln!("Invalid pixel type: {}", pixel_type);
-            exit(1);
+            return Err(ParsingError::InvalidHeaderPixelType);
         }
 
 
@@ -113,10 +120,10 @@ impl Parser {
             },
         });
 
-        return true;
+        return Ok(true);
     }
 
-    fn parse_comment(&mut self) -> bool {
+    fn parse_comment(&mut self) -> Result<bool, ParsingError> {
         let length = self.reader.read_u32::<BigEndian>().unwrap();
         let mut data = vec![0; length as usize];
         self.reader.read_exact(&mut data).unwrap();
@@ -124,46 +131,52 @@ impl Parser {
         let text = String::from_utf8(data).unwrap();
         self.builder.set_comment(mpng::MPNGComment { text });
 
-        return true;
+        return Ok(true);
     }
 
-    fn parse_data(&mut self) -> bool {
+    fn parse_data(&mut self) -> Result<bool, ParsingError> {
         let length = self.reader.read_u32::<BigEndian>().unwrap();
-        let mut data = vec![0; length as usize];
+        
+        match self.builder.header.unwrap().width * self.builder.header.unwrap().height / 8 == length {
+            true => {
+                let mut data_buffer = vec![0; length as usize];
+                self.reader.read_exact(&mut data_buffer).unwrap();
+                self.builder.set_data(mpng::MPNGData { data: data_buffer });
+                Ok(true)
+            },
+            false => { Err(ParsingError::InvalidDataBlockConsistency) }
+            
+        }
 
-        // test data consistency
-        assert!(self.builder.header.unwrap().width * self.builder.header.unwrap().height / 8 == length);
-
-        self.reader.read_exact(&mut data).unwrap();
-
-        self.builder.set_data(mpng::MPNGData { data });
-
-        return false;
+       
     }
 
     /// Read a block and orient the parser into the correct state
     /// return true if a block follows after this one else return false
     /// raise an error if the block is invalid
-    fn read_block(&mut self) -> bool {
+    fn read_block(&mut self) -> Result<bool, ParsingError> {
         let another_block = self.reader.read_u8();
 
         match another_block {
             Ok(block_type) => {
                 // print block type as char
                 match block_type {
-                    b'H' => return self.parse_header(),
-                    b'C' => return self.parse_comment(),
-                    b'D' => return self.parse_data(),
-                    0 => return false, // EOF
+                    b'H' => self.parse_header(),
+                    b'C' => self.parse_comment(),
+                    b'D' => self.parse_data(),
                     _ => {
-                        eprintln!("Invalid block type: 0x{:x}", block_type);
-                        std::process::exit(1);
+                        eprintln!( "Invalid block tag: {:?}", block_type as char);
+                        return Err(ParsingError::InvalidBlockTag)
                     }
+                    
                 }
             }
-            Err(_) => {
-                eprintln!("Error reading block type");
-                std::process::exit(1);
+            Err(e) => {
+                if e.kind() == std::io::ErrorKind::UnexpectedEof {
+                    return Ok(false);
+                } else {
+                    panic!("Error reading block type: {:?}", e);
+                }
             }
         }
     }
